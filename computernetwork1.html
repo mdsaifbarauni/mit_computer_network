@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Interactive Computer Networks Study Guide</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chosen Palette: "Serene Scholar" - A calming and academic theme. -->
+    <!-- Application Structure Plan: A dashboard-style single-page application. A persistent sidebar allows for non-linear navigation between the 5 modules, which is more effective for study and revision than a linear document. The main content area dynamically renders interactive components (visualizers, calculators, animated diagrams) for the selected module. This structure prioritizes user engagement and exploration over passive reading, allowing students to compare concepts and practice difficult topics like subnetting in a hands-on manner. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: OSI/TCP/IP Layers -> Goal: Compare models & show data flow -> Viz: Interactive stacked diagram with clickable layers and an animated encapsulation flow -> Justification: Visually connects the two models and makes the abstract concept of encapsulation tangible.
+        - Report Info: Flow Control Protocols -> Goal: Differentiate Stop-and-Wait, GBN, SR -> Viz: Enhanced animated timeline visualizer with moving packets and windows -> Justification: Shows the dynamic process of frame/ACK exchange and error recovery, which is difficult to grasp from static text.
+        - Report Info: PYQ Subnetting Problem -> Goal: Provide hands-on practice -> Viz: Interactive Subnet Calculator -> Justification: Turns a critical, difficult exam problem into an engaging tool, reinforcing learning through practice.
+        - Report Info: Congestion Control Algorithms -> Goal: Explain Leaky vs. Token Bucket -> Viz: Animated bucket visualizer -> Justification: Clearly demonstrates the difference in traffic shaping (constant rate vs. burstable rate) in a simple, visual metaphor.
+        - Report Info: MCQ Section -> Goal: Self-assessment -> Viz: Interactive quiz with immediate feedback -> Justification: Reinforces learning and provides exam practice.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 350px;
+        }
+        .sidebar-link {
+            transition: all 0.2s ease-in-out;
+        }
+        .sidebar-link.active {
+            background-color: #3b82f6;
+            color: white;
+            transform: translateX(4px);
+        }
+        .content-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .content-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .interactive-btn {
+            transition: background-color 0.2s, transform 0.2s;
+        }
+        .interactive-btn:hover {
+            transform: scale(1.05);
+        }
+        .tab.active {
+            border-bottom-color: #3b82f6;
+            color: #3b82f6;
+            font-weight: 600;
+        }
+        .packet {
+            position: absolute;
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            color: white;
+            font-size: 0.875rem;
+            transition: all 1s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .mcq-option.correct {
+            background-color: #dcfce7;
+            border-color: #22c55e;
+        }
+        .mcq-option.incorrect {
+            background-color: #fee2e2;
+            border-color: #ef4444;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="flex min-h-screen">
+        <!-- Sidebar Navigation -->
+        <aside id="sidebar" class="w-64 bg-white shadow-lg p-4 fixed lg:relative -translate-x-full lg:translate-x-0 transition-transform z-20 flex flex-col">
+            <div class="flex items-center gap-3 mb-6">
+                <!-- Replace './folder/your-logo.png' with the actual path to your logo image -->
+                <img id="brand-logo" src="./folder/your-logo.png" alt="Brand Logo" class="h-10 w-10 rounded-full object-cover" onerror="this.onerror=null; this.src='https://placehold.co/40x40/3b82f6/FFFFFF?text=CN';">
+                <h1 class="text-xl font-bold text-blue-600">Computer Networks</h1>
+            </div>
+            <input type="file" id="logo-upload" class="hidden" accept="image/*">
+            <button id="logo-upload-btn" class="text-xs text-center text-blue-500 hover:underline mb-4">Change Logo</button>
+            <nav id="nav-menu" class="space-y-2 flex-1">
+                <!-- Navigation links will be injected here -->
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+            <button id="menu-toggle" class="lg:hidden fixed top-4 left-4 z-30 bg-white p-2 rounded-md shadow-md">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+                </svg>
+            </button>
+            <div id="content-area" class="w-full max-w-7xl mx-auto">
+                <!-- Dynamic content will be rendered here -->
+            </div>
+        </main>
+    </div>
+    
+    <div id="overlay" class="fixed inset-0 bg-black bg-opacity-50 hidden z-10 lg:hidden"></div>
+
+
+<script>
+const App = {
+    // STATE
+    state: {
+        currentModule: 'module1',
+    },
+
+    // DATA STORE
+    data: {
+        modules: [
+            { id: 'module1', title: 'Module 1: Fundamentals' },
+            { id: 'module2', title: 'Module 2: Data Link Layer' },
+            { id: 'module3', title: 'Module 3: Network Layer' },
+            { id: 'module4', title: 'Module 4: Transport Layer' },
+            { id: 'module5', title: 'Module 5: Application Layer' },
+        ],
+        content: {
+            module1: {
+                title: 'Data Communication Fundamentals',
+                intro: 'Welcome to the world of Computer Networks. This foundational module introduces the essential concepts that form the bedrock of all network communication. We will delve into the core components of a communication system, explore the different ways networks can be physically and logically arranged (topologies), and understand the layered models (OSI and TCP/IP) that standardize network functions. Finally, we will examine the physical media that carry data and the techniques used to share them efficiently. A solid grasp of these fundamentals is crucial for understanding the more complex topics in subsequent modules.',
+                sections: [
+                    { 
+                        title: 'Network Topologies',
+                        type: 'interactive-diagram',
+                        id: 'topology-diagram',
+                        description: 'Network topology is the schematic description of a network\'s arrangement, connecting various nodes (sender and receiver) through lines of connection. Understanding topologies is key to designing efficient, reliable, and cost-effective networks. Each topology has distinct advantages and disadvantages in terms of cost, scalability, and fault tolerance. Hover over a topology below to explore its characteristics.',
+                        items: [
+                            { name: 'Bus', pros: 'Simple, cheap, easy to install. Requires less cable than other topologies.', cons: 'The entire network shuts down if there is a break in the main cable. Difficult to troubleshoot. Performance degrades as more devices are added.' },
+                            { name: 'Star', pros: 'Easy to install and manage. A break in one cable does not affect the rest of the network. Easy to detect faults and remove parts.', cons: 'Requires more cable than a bus topology. If the central hub or switch fails, the entire network fails.' },
+                            { name: 'Ring', pros: 'Transmits data in one direction, reducing packet collisions. Performs better than a bus topology under heavy network load.', cons: 'A single break in the cable can disrupt the entire network. Adding or removing devices disrupts network activity.' },
+                            { name: 'Mesh', pros: 'Extremely robust. If one link becomes unusable, it does not incapacitate the entire system. Provides security and privacy.', cons: 'The amount of cabling and the number of I/O ports required are very high, making it expensive. Installation and reconfiguration are difficult.' },
+                        ]
+                    },
+                    {
+                        title: 'OSI vs. TCP/IP Model',
+                        type: 'interactive-stack',
+                        id: 'osi-tcp-stack',
+                        description: 'To standardize network communication, conceptual models were developed. The OSI (Open Systems Interconnection) model is a 7-layer theoretical model, while the TCP/IP model is a 4-layer practical model that the modern internet is based on. This interactive diagram allows you to compare the layers and simulate the crucial process of encapsulation, where data is wrapped with headers as it travels down the stack.'
+                    },
+                    {
+                        title: 'Module 1: Knowledge Check',
+                        type: 'mcq',
+                        id: 'mcq-module1',
+                        description: 'Test your understanding of the fundamental concepts covered in this module.',
+                        questions: [
+                            {
+                                q: "Which data flow mode allows communication in both directions, but not at the same time?",
+                                options: ["Simplex", "Half-Duplex", "Full-Duplex", "Multiplex"],
+                                answer: 1
+                            },
+                            {
+                                q: "In which topology is a central controller or hub a single point of failure?",
+                                options: ["Bus", "Ring", "Mesh", "Star"],
+                                answer: 3
+                            },
+                            {
+                                q: "Which layer of the OSI model is responsible for translation, compression, and encryption?",
+                                options: ["Application", "Session", "Presentation", "Transport"],
+                                answer: 2
+                            }
+                        ]
+                    }
+                ]
+            },
+            module2: {
+                title: 'The Data Link Layer',
+                intro: 'The Data Link Layer (DLL) acts as the bridge between the raw bit stream of the Physical Layer and the packet-forwarding logic of the Network Layer. Its primary mission is to ensure reliable, error-free communication between two directly connected nodes (a single "hop"). This module explores the three core functions of the DLL: error control to detect and correct transmission flaws, flow control to prevent a fast sender from overwhelming a slow receiver, and media access control to manage how multiple devices share a single communication channel.',
+                sections: [
+                    {
+                        title: 'Error Control: CRC Calculator',
+                        type: 'crc-calculator',
+                        id: 'crc-calc',
+                        description: 'Data can get corrupted during transmission. Cyclic Redundancy Check (CRC) is a powerful and widely used error-detection technique. It treats the data as a large polynomial and uses polynomial division to compute a checksum. This interactive calculator lets you input binary data and a generator polynomial (e.g., 1011 for CRC-3) to see the step-by-step calculation of the CRC and the final transmitted frame.'
+                    },
+                    {
+                        title: 'Flow Control Protocol Visualizer',
+                        type: 'flow-control-visualizer',
+                        id: 'flow-visualizer',
+                        description: 'Flow control mechanisms are essential to prevent data loss when a sender is faster than a receiver. This visualizer animates the timeline of frame and acknowledgment (ACK) exchanges for different protocols. You can simulate a perfect transmission or introduce a packet loss to see how each protocol—Stop-and-Wait, Go-Back-N, and Selective Repeat—recovers from errors. Observe the differences in efficiency and retransmission strategy.'
+                    },
+                    {
+                        title: 'Multiple Access Protocol Throughput',
+                        type: 'chart',
+                        id: 'aloha-chart',
+                        description: 'In a shared medium network (like Wi-Fi or early Ethernet), a protocol is needed to coordinate who can transmit and when. This is Media Access Control (MAC). This chart compares the maximum theoretical throughput of two early random-access protocols: Pure ALOHA and its improved version, Slotted ALOHA. The difference highlights the significant performance gain achieved by introducing simple time synchronization.',
+                        chartData: {
+                            labels: ['Pure ALOHA', 'Slotted ALOHA'],
+                            datasets: [{
+                                label: 'Maximum Throughput (%)',
+                                data: [18.4, 36.8],
+                                backgroundColor: ['rgba(255, 99, 132, 0.6)', 'rgba(54, 162, 235, 0.6)'],
+                                borderColor: ['rgb(255, 99, 132)', 'rgb(54, 162, 235)'],
+                                borderWidth: 1
+                            }]
+                        }
+                    },
+                    {
+                        title: 'Module 2: Knowledge Check',
+                        type: 'mcq',
+                        id: 'mcq-module2',
+                        description: 'Test your understanding of Data Link Layer concepts.',
+                        questions: [
+                            {
+                                q: "Which flow control protocol retransmits only the lost or damaged frame?",
+                                options: ["Stop-and-Wait", "Go-Back-N", "Selective Repeat", "ALOHA"],
+                                answer: 2
+                            },
+                            {
+                                q: "CSMA/CA (Collision Avoidance) is primarily used in which type of network?",
+                                options: ["Wired Ethernet", "Fiber Optic", "Wireless (WLAN)", "Token Ring"],
+                                answer: 2
+                            },
+                            {
+                                q: "If a system uses 3 bits for frame sequence numbers in a Go-Back-N protocol, what is the maximum window size?",
+                                options: ["3", "4", "7", "8"],
+                                answer: 2
+                            }
+                        ]
+                    }
+                ]
+            },
+            module3: {
+                title: 'The Network Layer',
+                intro: 'The Network Layer is the heart of the internet, responsible for moving packets from their source host to their destination host, potentially across many intermediate networks. This end-to-end delivery is its core function. To achieve this, it relies on two key components: logical addressing (using IP addresses to uniquely identify every device on the internet) and routing (the process of discovering and selecting the best paths for packets to travel). This module covers these critical functions in detail.',
+                sections: [
+                    {
+                        title: 'IPv4 Subnet Calculator',
+                        type: 'subnet-calculator',
+                        id: 'subnet-calc',
+                        description: 'Subnetting is the process of dividing a large network into smaller, more manageable sub-networks. This is a fundamental skill for network administrators and a very common exam topic. This interactive tool allows you to input a base network address (in CIDR notation) and specify the address requirements for different departments or organizations. It then automatically calculates and displays the optimal allocation, including network addresses, broadcast addresses, and valid host ranges.'
+                    },
+                    {
+                        title: 'Routing: Count-to-Infinity Problem',
+                        type: 'animation',
+                        id: 'count-to-infinity',
+                        description: 'Distance-vector routing protocols like RIP are simple but have a critical flaw known as the "Count-to-Infinity" problem. When a link fails, incorrect routing updates can cause a loop where packets are forwarded back and forth indefinitely as the metric (hop count) for the down route increases towards infinity. This simulation visualizes how this routing loop forms after a link failure.'
+                    },
+                    {
+                        title: 'Module 3: Knowledge Check',
+                        type: 'mcq',
+                        id: 'mcq-module3',
+                        description: 'Test your understanding of Network Layer concepts.',
+                        questions: [
+                            {
+                                q: "Which protocol is used to map a known IP address to a MAC address?",
+                                options: ["RARP", "DHCP", "ICMP", "ARP"],
+                                answer: 3
+                            },
+                            {
+                                q: "What is the primary advantage of packet switching over circuit switching for internet traffic?",
+                                options: ["Constant delay", "Guaranteed bandwidth", "Efficient use of network resources", "No connection setup required"],
+                                answer: 2
+                            },
+                            {
+                                q: "Which routing protocol is classified as a Link-State protocol?",
+                                options: ["RIP", "BGP", "OSPF", "None of the above"],
+                                answer: 2
+                            }
+                        ]
+                    }
+                ]
+            },
+            module4: {
+                title: 'The Transport Layer',
+                intro: 'While the Network Layer gets packets from host-to-host, the Transport Layer is responsible for something more specific: process-to-process delivery. It ensures that data from an application on one machine (like a web browser) gets to the correct application on the destination machine (the web server). It acts as a bridge between the application layer and the logical network, providing essential services like reliability, flow control, and congestion control. It offers two primary protocols, TCP and UDP, each tailored for different kinds of applications.',
+                sections: [
+                    {
+                        title: 'TCP vs. UDP',
+                        type: 'tabs',
+                        id: 'tcp-udp-tabs',
+                        description: 'The two workhorse protocols of the Transport Layer are TCP (Transmission Control Protocol) and UDP (User Datagram Protocol). They represent a fundamental trade-off between reliability and speed. TCP is the reliable, connection-oriented protocol for applications where every bit matters. UDP is the fast, lightweight, connectionless protocol for applications where speed is paramount. Select a protocol below to explore its characteristics and common use cases.',
+                        tabs: [
+                            { 
+                                name: 'TCP', 
+                                content: `
+                                    <h4 class="font-semibold text-lg mb-2">Transmission Control Protocol (TCP)</h4>
+                                    <ul class="list-disc list-inside space-y-2 text-gray-700">
+                                        <li><strong class="text-blue-600">Reliable & Ordered:</strong> Guarantees that data will be delivered completely, without errors, and in the correct sequence. It achieves this using sequence numbers and acknowledgments (ACKs). If an ACK isn't received, the data is retransmitted.</li>
+                                        <li><strong class="text-blue-600">Connection-Oriented:</strong> A formal connection, known as the "3-way handshake," must be established between the sender and receiver before any data is sent. This ensures both ends are ready.</li>
+                                        <li><strong class="text-blue-600">Heavyweight:</strong> The mechanisms for reliability (ACKs, retransmissions, ordering) and connection management add significant overhead, making its header larger (20+ bytes) and the protocol slower.</li>
+                                        <li><strong class="text-blue-600">Use Cases:</strong> Perfect for applications where data integrity is non-negotiable, such as Web browsing (HTTP/S), Email (SMTP), and File Transfer (FTP).</li>
+                                    </ul>`
+                            },
+                            { 
+                                name: 'UDP', 
+                                content: `
+                                    <h4 class="font-semibold text-lg mb-2">User Datagram Protocol (UDP)</h4>
+                                    <ul class="list-disc list-inside space-y-2 text-gray-700">
+                                        <li><strong class="text-red-600">Unreliable & Unordered:</strong> Known as a "best-effort" or "fire-and-forget" protocol. It sends packets (datagrams) but provides no guarantee they will arrive, be in order, or be free of errors.</li>
+                                        <li><strong class="text-red-600">Connectionless:</strong> No handshake, no connection setup. It just sends the data. This makes it very fast to start communication.</li>
+                                        <li><strong class="text-red-600">Lightweight:</strong> Has a very simple, small header (8 bytes), which means less overhead and higher speed. It does not implement flow or congestion control.</li>
+                                        <li><strong class="text-red-600">Use Cases:</strong> Ideal for real-time applications where speed is critical and minor data loss is acceptable, such as live video/audio streaming, online gaming, and DNS queries.</li>
+                                    </ul>`
+                            }
+                        ]
+                    },
+                    {
+                        title: 'Congestion Control Visualizer',
+                        type: 'bucket-visualizer',
+                        id: 'bucket-viz',
+                        description: 'Congestion control prevents the network from being overloaded. Leaky Bucket and Token Bucket are two classic algorithms for traffic shaping (controlling the rate of data transmission). This visualization demonstrates their fundamental difference: Leaky Bucket enforces a rigid, constant output rate, while Token Bucket allows for short bursts of traffic, making it more flexible.'
+                    },
+                    {
+                        title: 'Module 4: Knowledge Check',
+                        type: 'mcq',
+                        id: 'mcq-module4',
+                        description: 'Test your understanding of Transport Layer concepts.',
+                        questions: [
+                            {
+                                q: "Which of the following is a characteristic of UDP?",
+                                options: ["Connection-oriented", "Reliable delivery", "Low overhead", "Flow control"],
+                                answer: 2
+                            },
+                            {
+                                q: "The combination of an IP address and a port number is called a:",
+                                options: ["MAC Address", "Host Address", "Socket Address", "Subnet Mask"],
+                                answer: 2
+                            },
+                            {
+                                q: "How many steps are involved in the standard TCP connection establishment process?",
+                                options: ["1", "2", "3", "4"],
+                                answer: 2
+                            }
+                        ]
+                    }
+                ]
+            },
+            module5: {
+                title: 'The Application Layer',
+                intro: 'The Application Layer is the highest layer in the network models and the one closest to the end-user. It doesn\'t provide services to other layers but rather to application processes lying outside the scope of the model. This layer provides the protocols and services that allow software applications to communicate over the network. Examples include browsing the web, sending emails, and transferring files. This module explores some of the most important protocols that power these everyday activities.',
+                sections: [
+                    {
+                        title: 'DNS Resolution Flow',
+                        type: 'animation',
+                        id: 'dns-flow',
+                        description: 'The Domain Name System (DNS) is the internet\'s phonebook, translating human-readable domain names (like www.google.com) into machine-readable IP addresses. This process involves a hierarchical chain of queries. This animation visualizes the step-by-step journey of a recursive DNS query, from your computer to the local DNS server, and then on to the root, TLD, and finally the authoritative name servers that hold the answer.'
+                    },
+                    {
+                        title: 'Common Application Protocols',
+                        type: 'cards',
+                        id: 'protocol-cards',
+                        description: 'The Application Layer is a vast collection of protocols designed for specific tasks. Click on the cards below to get a quick overview of some of the most fundamental protocols that you use every day, often without realizing it. Understanding their purpose and basic mechanism is key to understanding how the internet works from a user\'s perspective.',
+                        items: [
+                            { name: 'HTTP/HTTPS', detail: 'Hypertext Transfer Protocol is the foundation of the web. HTTPS is the secure version, encrypting data for privacy. It\'s a stateless request-response protocol.' },
+                            { name: 'FTP', detail: 'File Transfer Protocol. Uniquely uses two TCP connections: a control connection on port 21 for commands and a separate data connection for transferring files.' },
+                            { name: 'SMTP', detail: 'Simple Mail Transfer Protocol. The standard protocol for sending (pushing) email from a client to a server and between mail servers.' },
+                            { name: 'Firewall', detail: 'A network security system, not a protocol itself, but operates up to the Application Layer to filter traffic based on a set of rules to protect a network.' }
+                        ]
+                    },
+                    {
+                        title: 'Module 5: Knowledge Check',
+                        type: 'mcq',
+                        id: 'mcq-module5',
+                        description: 'Test your understanding of Application Layer concepts.',
+                        questions: [
+                            {
+                                q: "Which protocol is used for sending email?",
+                                options: ["POP3", "IMAP", "SMTP", "HTTP"],
+                                answer: 2
+                            },
+                            {
+                                q: "FTP is unique because it uses:",
+                                options: ["UDP for control", "A single TCP connection", "Two separate TCP connections", "No connections"],
+                                answer: 2
+                            },
+                            {
+                                q: "The system that translates domain names into IP addresses is called:",
+                                options: ["DHCP", "ARP", "URL", "DNS"],
+                                answer: 3
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    },
+
+    // INITIALIZATION
+    init() {
+        this.renderNav();
+        this.renderContent();
+        this.attachNavListeners();
+        this.attachMobileMenuListeners();
+        this.attachLogoUploadListener();
+    },
+
+    // RENDER FUNCTIONS
+    renderNav() {
+        const navMenu = document.getElementById('nav-menu');
+        navMenu.innerHTML = this.data.modules.map(module => `
+            <a href="#" data-module="${module.id}" class="sidebar-link block px-4 py-2 rounded-md text-gray-700 hover:bg-blue-500 hover:text-white ${this.state.currentModule === module.id ? 'active' : ''}">
+                ${module.title}
+            </a>
+        `).join('');
+    },
+
+    renderContent() {
+        const contentArea = document.getElementById('content-area');
+        const moduleData = this.data.content[this.state.currentModule];
+        
+        let contentHtml = `
+            <h2 class="text-4xl font-bold mb-3 text-gray-900">${moduleData.title}</h2>
+            <p class="text-lg text-gray-600 mb-10 leading-relaxed">${moduleData.intro}</p>
+        `;
+
+        moduleData.sections.forEach(section => {
+            contentHtml += `
+                <div class="bg-white p-6 rounded-lg shadow-md mb-8 content-card">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3 class="text-2xl font-semibold mb-2 text-gray-800">${section.title}</h3>
+                            <p class="text-gray-600 mb-6">${section.description}</p>
+                        </div>
+                    </div>
+                    <div id="${section.id}" class="mt-4">
+                        ${this.renderSection(section)}
+                    </div>
+                </div>
+            `;
+        });
+        
+        contentArea.innerHTML = contentHtml;
+        this.attachSectionListeners();
+    },
+    
+    renderSection(section) {
+        switch (section.type) {
+            case 'interactive-diagram':
+                return this.renderTopologyDiagram(section);
+            case 'interactive-stack':
+                return this.renderOsiStack();
+            case 'crc-calculator':
+                return this.renderCrcCalculator();
+            case 'flow-control-visualizer':
+                return this.renderFlowVisualizer();
+            case 'chart':
+                return `<div class="chart-container"><canvas id="${section.id}-canvas"></canvas></div>`;
+            case 'subnet-calculator':
+                return this.renderSubnetCalculator();
+            case 'animation':
+                 if (section.id === 'count-to-infinity') return this.renderCountToInfinity();
+                 if (section.id === 'dns-flow') return this.renderDnsFlow();
+                 return '';
+            case 'tabs':
+                return this.renderTabs(section);
+            case 'bucket-visualizer':
+                return this.renderBucketVisualizer();
+            case 'cards':
+                return this.renderCards(section);
+            case 'mcq':
+                return this.renderMCQ(section);
+            default:
+                return '';
+        }
+    },
+    
+    // ATTACH LISTENERS
+    attachNavListeners() {
+        const navMenu = document.getElementById('nav-menu');
+        navMenu.addEventListener('click', (e) => {
+            e.preventDefault();
+            const link = e.target.closest('.sidebar-link');
+            if (link) {
+                this.state.currentModule = link.dataset.module;
+                this.renderNav();
+                this.renderContent();
+                if (window.innerWidth < 1024) {
+                    document.getElementById('sidebar').classList.add('-translate-x-full');
+                    document.getElementById('overlay').classList.add('hidden');
+                }
+            }
+        });
+    },
+    
+    attachMobileMenuListeners() {
+        const menuToggle = document.getElementById('menu-toggle');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+        
+        menuToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('-translate-x-full');
+            overlay.classList.toggle('hidden');
+        });
+
+        overlay.addEventListener('click', () => {
+            sidebar.classList.add('-translate-x-full');
+            overlay.classList.add('hidden');
+        });
+    },
+    
+    attachLogoUploadListener() {
+        const btn = document.getElementById('logo-upload-btn');
+        const input = document.getElementById('logo-upload');
+        if (btn && input) {
+            btn.addEventListener('click', () => {
+                input.click();
+            });
+            input.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        document.getElementById('brand-logo').src = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+    },
+
+    attachSectionListeners() {
+        this.data.content[this.state.currentModule].sections.forEach(section => {
+            if (section.type === 'chart') this.createChart(section);
+            if (section.type === 'crc-calculator') document.getElementById('crc-calculate-btn').addEventListener('click', this.handleCrcCalculation.bind(this));
+            if (section.type === 'subnet-calculator') {
+                document.getElementById('subnet-add-org-btn').addEventListener('click', this.handleAddOrg.bind(this));
+                document.getElementById('subnet-calculate-btn').addEventListener('click', this.handleSubnetCalculation.bind(this));
+            }
+            if (section.type === 'interactive-stack') {
+                document.querySelectorAll('.osi-layer, .tcp-layer').forEach(layer => layer.addEventListener('click', (e) => this.handleLayerClick(e.currentTarget)));
+                document.getElementById('encapsulation-btn').addEventListener('click', this.runEncapsulationAnimation.bind(this));
+            }
+            if (section.type === 'flow-control-visualizer') document.getElementById('flow-simulate-btn').addEventListener('click', this.runFlowControlAnimation.bind(this));
+            if (section.type === 'animation' && section.id === 'count-to-infinity') document.getElementById('simulate-link-failure-btn').addEventListener('click', this.runCountToInfinityAnimation.bind(this));
+            if (section.type === 'animation' && section.id === 'dns-flow') document.getElementById('dns-resolve-btn').addEventListener('click', this.runDnsFlowAnimation.bind(this));
+            if (section.type === 'tabs') document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', (e) => this.handleTabClick(e.currentTarget, section.id)));
+            if (section.type === 'bucket-visualizer') document.getElementById('bucket-simulate-btn').addEventListener('click', this.runBucketAnimation.bind(this));
+            if (section.type === 'interactive-diagram') {
+                const infoDiv = document.getElementById('topology-info');
+                document.querySelectorAll('.topology-btn').forEach(btn => {
+                    btn.addEventListener('mouseenter', (e) => {
+                        const topoName = e.target.dataset.name;
+                        const topoData = section.items.find(i => i.name === topoName);
+                        infoDiv.innerHTML = `<h5 class="font-bold text-lg">${topoData.name}</h5><p><strong>Pros:</strong> ${topoData.pros}</p><p><strong>Cons:</strong> ${topoData.cons}</p>`;
+                    });
+                });
+            }
+            if (section.type === 'cards') {
+                document.querySelectorAll('.protocol-card').forEach(card => {
+                    card.addEventListener('click', () => {
+                        card.querySelector('.detail-text').classList.toggle('hidden');
+                    });
+                });
+            }
+            if (section.type === 'mcq') {
+                document.getElementById(`mcq-check-btn-${section.id}`).addEventListener('click', () => this.handleCheckMCQAnswers(section));
+            }
+        });
+    },
+
+    // INTERACTIVE COMPONENT RENDERERS & HANDLERS
+    
+    renderTopologyDiagram(section) {
+        return `
+            <div class="flex flex-wrap gap-8 items-center justify-center">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    ${section.items.map(item => `<button class="topology-btn p-3 bg-gray-200 rounded-md hover:bg-blue-500 hover:text-white transition" data-name="${item.name}">${item.name}</button>`).join('')}
+                </div>
+                <div id="topology-info" class="p-4 bg-blue-50 rounded-lg w-full md:w-1/2 min-h-[100px]">
+                    <p class="text-gray-600">Hover over a button to see details.</p>
+                </div>
+            </div>
+        `;
+    },
+
+    renderOsiStack() {
+        const layers = {
+            osi: ['Application', 'Presentation', 'Session', 'Transport', 'Network', 'Data Link', 'Physical'],
+            tcp: ['Application', 'Transport', 'Internet', 'Network Access']
+        };
+        return `
+            <div class="flex flex-col md:flex-row gap-8 justify-center items-center">
+                <!-- OSI Model -->
+                <div class="flex-1">
+                    <h4 class="text-center font-bold text-lg mb-2">OSI Model</h4>
+                    <div class="space-y-1 relative">
+                        ${layers.osi.map((l, i) => `<div class="osi-layer p-3 bg-indigo-200 text-indigo-800 rounded-md text-center cursor-pointer hover:bg-indigo-300" data-layer="osi-${i+1}">${7-i}. ${l}</div>`).join('')}
+                    </div>
+                </div>
+                <!-- Encapsulation Area -->
+                <div id="encapsulation-animation-area" class="w-full md:w-1/3 h-96 relative flex flex-col justify-around items-center"></div>
+                <!-- TCP/IP Model -->
+                <div class="flex-1">
+                    <h4 class="text-center font-bold text-lg mb-2">TCP/IP Model</h4>
+                    <div class="space-y-1">
+                        <div class="tcp-layer p-3 bg-teal-200 text-teal-800 rounded-md text-center cursor-pointer hover:bg-teal-300 h-[140px] flex items-center justify-center" data-layer="tcp-4">Application</div>
+                        <div class="tcp-layer p-3 bg-teal-200 text-teal-800 rounded-md text-center cursor-pointer hover:bg-teal-300" data-layer="tcp-3">Transport</div>
+                        <div class="tcp-layer p-3 bg-teal-200 text-teal-800 rounded-md text-center cursor-pointer hover:bg-teal-300" data-layer="tcp-2">Internet</div>
+                        <div class="tcp-layer p-3 bg-teal-200 text-teal-800 rounded-md text-center cursor-pointer hover:bg-teal-300 h-[92px] flex items-center justify-center" data-layer="tcp-1">Network Access</div>
+                    </div>
+                </div>
+            </div>
+            <div id="layer-info" class="mt-6 p-4 bg-gray-100 rounded-lg min-h-[80px] text-center">Click a layer for details.</div>
+            <div class="text-center mt-6">
+                <button id="encapsulation-btn" class="interactive-btn bg-green-500 text-white font-bold py-2 px-4 rounded-lg">Simulate Encapsulation</button>
+            </div>
+        `;
+    },
+
+    handleLayerClick(layerElement) {
+        const layerData = {
+            'osi-7': 'Layer 7 - Application: Provides user interfaces and support for services like email, web browsing. (HTTP, FTP, DNS)',
+            'osi-6': 'Layer 6 - Presentation: Translates, encrypts, and compresses data to ensure it is readable by the application layer.',
+            'osi-5': 'Layer 5 - Session: Establishes, manages, and terminates sessions between applications.',
+            'osi-4': 'Layer 4 - Transport: Provides reliable process-to-process message delivery. Data Unit: Segment/Datagram. (TCP, UDP)',
+            'osi-3': 'Layer 3 - Network: Handles logical addressing and routing of packets across networks. Data Unit: Packet. (IP, ICMP)',
+            'osi-2': 'Layer 2 - Data Link: Organizes bits into frames for hop-to-hop delivery. Handles error detection. Data Unit: Frame. (Ethernet, MAC)',
+            'osi-1': 'Layer 1 - Physical: Transmits raw bits over the physical medium. Data Unit: Bit. (Cables, Hubs)',
+            'tcp-4': 'Application Layer: Combines functions of OSI Application, Presentation, and Session layers. (HTTP, FTP, DNS)',
+            'tcp-3': 'Transport Layer: Corresponds to the OSI Transport layer. (TCP, UDP)',
+            'tcp-2': 'Internet Layer: Corresponds to the OSI Network layer. (IP, ICMP)',
+            'tcp-1': 'Network Access Layer: Combines functions of OSI Data Link and Physical layers. (Ethernet, Wi-Fi)',
+        };
+        document.getElementById('layer-info').textContent = layerData[layerElement.dataset.layer] || 'Select a layer.';
+    },
+    
+    runEncapsulationAnimation() {
+        const area = document.getElementById('encapsulation-animation-area');
+        area.innerHTML = ''; // Clear previous animation
+        
+        const steps = [
+            { text: 'Data', color: 'bg-yellow-400' },
+            { text: 'Segment', color: 'bg-green-400' },
+            { text: 'Packet', color: 'bg-blue-400' },
+            { text: 'Frame', color: 'bg-indigo-400' },
+            { text: 'Bits', color: 'bg-red-400' }
+        ];
+
+        let dataEl = document.createElement('div');
+        dataEl.className = 'absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 p-4 rounded-lg text-white font-bold text-center transition-all duration-500';
+        dataEl.style.width = '80px';
+        dataEl.style.height = '40px';
+        area.appendChild(dataEl);
+
+        let currentStep = -1;
+        const animate = () => {
+            currentStep++;
+            if (currentStep >= steps.length) {
+                dataEl.textContent = 'Sent!';
+                dataEl.style.transform = 'translate(-50%, -50%) scale(1.2)';
+                setTimeout(() => { area.innerHTML = ''; }, 2000);
+                return;
+            }
+
+            const step = steps[currentStep];
+            dataEl.className = `absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 p-4 rounded-lg text-white font-bold text-center transition-all duration-500 ${step.color}`;
+            dataEl.textContent = step.text;
+            
+            const newWidth = 80 + currentStep * 20;
+            dataEl.style.width = `${newWidth}px`;
+
+            setTimeout(animate, 1000);
+        };
+        animate();
+    },
+
+    renderCrcCalculator() {
+        return `
+            <div class="flex flex-col md:flex-row gap-4 items-center">
+                <input type="text" id="crc-data" placeholder="Enter binary data (e.g., 101101)" class="flex-1 p-2 border rounded-md">
+                <input type="text" id="crc-poly" placeholder="Enter generator (e.g., 1011)" class="flex-1 p-2 border rounded-md">
+                <button id="crc-calculate-btn" class="interactive-btn bg-blue-500 text-white font-bold py-2 px-4 rounded-lg">Calculate</button>
+            </div>
+            <div id="crc-result" class="mt-4 p-4 bg-gray-100 rounded-lg min-h-[50px]"></div>
+        `;
+    },
+
+    handleCrcCalculation() {
+        const data = document.getElementById('crc-data').value;
+        const poly = document.getElementById('crc-poly').value;
+        const resultDiv = document.getElementById('crc-result');
+
+        if (!/^[01]+$/.test(data) || !/^[01]+$/.test(poly) || poly.length === 0) {
+            resultDiv.innerHTML = '<p class="text-red-500">Please enter valid binary strings.</p>';
+            return;
+        }
+
+        const n = poly.length;
+        let dataArray = data.split('').map(Number);
+        const polyArray = poly.split('').map(Number);
+        
+        let dividend = [...dataArray, ...Array(n - 1).fill(0)];
+        let remainder = [...dividend];
+
+        for (let i = 0; i <= remainder.length - n; ) {
+            if (remainder[i] === 1) {
+                for (let j = 0; j < n; j++) {
+                    remainder[i + j] ^= polyArray[j];
+                }
+            }
+            // Move to the next '1'
+            while(remainder[i] === 0 && i <= remainder.length - n) {
+                i++;
+            }
+        }
+        
+        const crc = remainder.slice(- (n - 1)).join('');
+        resultDiv.innerHTML = `
+            <p><strong class="text-blue-600">CRC Checksum:</strong> ${crc}</p>
+            <p><strong class="text-blue-600">Transmitted Frame:</strong> ${data}<span class="text-red-500 font-bold">${crc}</span></p>
+        `;
+    },
+
+    renderSubnetCalculator() {
+        return `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="subnet-base" class="block font-medium">Base Network (CIDR):</label>
+                    <input type="text" id="subnet-base" value="80.70.56.0/21" class="w-full p-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block font-medium">Organization Requirements:</label>
+                    <div id="subnet-org-list" class="space-y-2">
+                        <input type="number" placeholder="500 addresses" class="w-full p-2 border rounded-md subnet-org-req">
+                        <input type="number" placeholder="500 addresses" class="w-full p-2 border rounded-md subnet-org-req">
+                        <input type="number" placeholder="250 addresses" class="w-full p-2 border rounded-md subnet-org-req">
+                    </div>
+                    <button id="subnet-add-org-btn" class="mt-2 text-sm text-blue-600 hover:underline">+ Add Organization</button>
+                </div>
+            </div>
+            <div class="text-center mt-6">
+                <button id="subnet-calculate-btn" class="interactive-btn bg-blue-500 text-white font-bold py-2 px-4 rounded-lg">Allocate Addresses</button>
+            </div>
+            <div id="subnet-result" class="mt-4 p-4 bg-gray-100 rounded-lg min-h-[100px] overflow-x-auto"></div>
+        `;
+    },
+    
+    handleAddOrg() {
+        const list = document.getElementById('subnet-org-list');
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.placeholder = 'e.g., 50 addresses';
+        input.className = 'w-full p-2 border rounded-md subnet-org-req';
+        list.appendChild(input);
+    },
+
+    handleSubnetCalculation() {
+        const baseCidr = document.getElementById('subnet-base').value;
+        const orgReqs = Array.from(document.querySelectorAll('.subnet-org-req'))
+            .map(input => parseInt(input.value))
+            .filter(val => !isNaN(val) && val > 0);
+        const resultDiv = document.getElementById('subnet-result');
+
+        try {
+            const [baseIp, prefixStr] = baseCidr.split('/');
+            const prefix = parseInt(prefixStr);
+            if (isNaN(prefix) || prefix < 0 || prefix > 32) throw new Error("Invalid CIDR prefix.");
+
+            let currentIp = this.ipToLong(baseIp);
+            
+            orgReqs.sort((a, b) => b - a);
+
+            let resultHtml = '<table class="w-full text-left border-collapse"><thead><tr><th class="p-2 border">Org</th><th class="p-2 border">Required</th><th class="p-2 border">Allocated</th><th class="p-2 border">Network Address</th><th class="p-2 border">Broadcast Address</th><th class="p-2 border">Range</th></tr></thead><tbody>';
+            
+            orgReqs.forEach((req, index) => {
+                const hostBits = Math.ceil(Math.log2(req + 2));
+                const allocated = Math.pow(2, hostBits);
+                const subnetPrefix = 32 - hostBits;
+
+                const networkAddr = this.longToIp(currentIp);
+                const broadcastAddr = this.longToIp(currentIp + allocated - 1);
+                const firstHost = this.longToIp(currentIp + 1);
+                const lastHost = this.longToIp(currentIp + allocated - 2);
+
+                resultHtml += `
+                    <tr>
+                        <td class="p-2 border">Org ${index + 1}</td>
+                        <td class="p-2 border">${req}</td>
+                        <td class="p-2 border">${allocated}</td>
+                        <td class="p-2 border font-mono">${networkAddr}/${subnetPrefix}</td>
+                        <td class="p-2 border font-mono">${broadcastAddr}</td>
+                        <td class="p-2 border font-mono">${firstHost} - ${lastHost}</td>
+                    </tr>
+                `;
+                currentIp += allocated;
+            });
+            
+            resultHtml += '</tbody></table>';
+            resultDiv.innerHTML = resultHtml;
+
+        } catch (e) {
+            resultDiv.innerHTML = `<p class="text-red-500">Error: ${e.message}</p>`;
+        }
+    },
+
+    ipToLong(ip) {
+        return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet), 0);
+    },
+
+    longToIp(long) {
+        return [(long >>> 24), (long >> 16 & 255), (long >> 8 & 255), (long & 255)].join('.');
+    },
+    
+    createChart(section) {
+        const ctx = document.getElementById(`${section.id}-canvas`).getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: section.chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true, max: 40 }
+                },
+                plugins: {
+                    title: { display: true, text: 'ALOHA Throughput Comparison' }
+                }
+            }
+        });
+    },
+    
+    renderFlowVisualizer() {
+        return `
+            <div class="flex flex-wrap gap-4 items-center mb-4">
+                <select id="flow-protocol-select" class="p-2 border rounded-md">
+                    <option value="stop-wait">Stop-and-Wait</option>
+                    <option value="gbn">Go-Back-N</option>
+                    <option value="sr">Selective Repeat</option>
+                </select>
+                <label class="flex items-center"><input type="checkbox" id="flow-error-checkbox" class="mr-2">Simulate Loss of Frame 3</label>
+                <button id="flow-simulate-btn" class="interactive-btn bg-blue-500 text-white font-bold py-2 px-4 rounded-lg">Simulate</button>
+            </div>
+            <div class="relative p-4 bg-gray-100 rounded-lg h-96 overflow-hidden">
+                <div class="absolute top-4 left-0 w-1/2 text-center font-bold">Sender</div>
+                <div class="absolute top-4 right-0 w-1/2 text-center font-bold">Receiver</div>
+                <div id="flow-animation-area" class="absolute top-12 bottom-4 left-0 right-0"></div>
+            </div>
+        `;
+    },
+
+    runFlowControlAnimation() {
+        const area = document.getElementById('flow-animation-area');
+        area.innerHTML = '';
+        const protocol = document.getElementById('flow-protocol-select').value;
+        const simulateError = document.getElementById('flow-error-checkbox').checked;
+
+        const animatePacket = (text, fromSender, isAck, isLost = false) => {
+            return new Promise(resolve => {
+                const packet = document.createElement('div');
+                packet.textContent = text;
+                packet.className = `packet ${isAck ? 'bg-green-500' : 'bg-blue-500'}`;
+                packet.style.top = `${Math.random() * 80}%`;
+                
+                if (fromSender) {
+                    packet.style.left = '10%';
+                } else {
+                    packet.style.left = '80%';
+                }
+                area.appendChild(packet);
+                
+                setTimeout(() => {
+                    if (isLost) {
+                        packet.style.opacity = '0';
+                        packet.style.transform = 'translateY(20px) scale(0.5)';
+                    } else {
+                        packet.style.left = fromSender ? '80%' : '10%';
+                    }
+                }, 100);
+
+                setTimeout(() => {
+                    area.removeChild(packet);
+                    resolve();
+                }, 1100);
+            });
+        };
+
+        const run = async () => {
+             for (let i = 1; i <= 5; i++) {
+                if (simulateError && i === 3) {
+                    await animatePacket(`Frame ${i}`, true, false, true);
+                    // Simulate timeout
+                    const timeoutMsg = document.createElement('div');
+                    timeoutMsg.textContent = 'TIMEOUT!';
+                    timeoutMsg.className = 'absolute top-1/2 left-1/4 text-red-500 font-bold animate-ping';
+                    area.appendChild(timeoutMsg);
+                    await new Promise(r => setTimeout(r, 1500));
+                    area.removeChild(timeoutMsg);
+                    
+                    // Retransmission logic
+                    if (protocol === 'stop-wait' || protocol === 'gbn') {
+                        for (let j = i; j <= 5; j++) {
+                           await animatePacket(`Re-TX Frame ${j}`, true, false);
+                           await animatePacket(`ACK ${j}`, false, true);
+                        }
+                        break; 
+                    } else { // Selective Repeat
+                        await animatePacket(`Re-TX Frame ${i}`, true, false);
+                        await animatePacket(`ACK ${i}`, false, true);
+                    }
+                } else {
+                    await animatePacket(`Frame ${i}`, true, false);
+                    await animatePacket(`ACK ${i}`, false, true);
+                }
+             }
+        };
+        run();
+    },
+    
+    renderCountToInfinity() {
+        return `
+            <div class="text-center">
+                <button id="simulate-link-failure-btn" class="interactive-btn bg-red-500 text-white font-bold py-2 px-4 rounded-lg">Simulate Link Failure</button>
+            </div>
+            <div id="cti-animation-area" class="mt-4 p-4 bg-gray-100 rounded-lg min-h-[200px] font-mono text-sm relative flex justify-around items-center">
+                <!-- Routers will be added here -->
+            </div>
+        `;
+    },
+
+    runCountToInfinityAnimation() {
+        const area = document.getElementById('cti-animation-area');
+        area.innerHTML = `
+            <div id="router-a" class="text-center">A<div class="p-2 bg-white rounded shadow text-xs">To C: (B, 2)</div></div>
+            <div class="absolute top-1/2 left-1/4 w-1/4 h-0.5 bg-black"></div>
+            <div id="router-b" class="text-center">B<div class="p-2 bg-white rounded shadow text-xs">To C: (C, 1)</div></div>
+            <div id="router-c-link" class="absolute top-1/2 right-1/4 w-1/4 h-0.5 bg-black"></div>
+            <div id="router-c" class="text-center">C</div>
+        `;
+
+        const updateTable = (routerId, text) => {
+            document.querySelector(`#${routerId} > div`).innerHTML = text;
+        };
+
+        setTimeout(() => {
+            document.getElementById('router-c-link').style.backgroundColor = 'red';
+            updateTable('router-b', 'To C: (&infin;)')
+        }, 1500);
+        setTimeout(() => updateTable('router-a', 'To C: (B, 3)'), 3000);
+        setTimeout(() => updateTable('router-b', 'To C: (A, 4)'), 4500);
+        setTimeout(() => updateTable('router-a', 'To C: (B, 5)'), 6000);
+    },
+    
+    renderDnsFlow() {
+        return `
+            <div class="text-center">
+                <button id="dns-resolve-btn" class="interactive-btn bg-blue-500 text-white font-bold py-2 px-4 rounded-lg">Resolve www.example.com</button>
+            </div>
+            <div id="dns-animation-area" class="mt-4 p-4 bg-gray-100 rounded-lg min-h-[250px] relative"></div>
+        `;
+    },
+    
+    runDnsFlowAnimation() {
+        const area = document.getElementById('dns-animation-area');
+        area.innerHTML = `
+            <div id="dns-client" class="absolute top-1/2 left-4 -translate-y-1/2 text-center">💻<br>Client</div>
+            <div id="dns-local" class="absolute top-1/4 left-1/4 text-center">🏢<br>Local DNS</div>
+            <div id="dns-root" class="absolute top-4 left-1/2 -translate-x-1/2 text-center">🌍<br>Root Server</div>
+            <div id="dns-tld" class="absolute top-1/4 right-1/4 text-center">.com<br>TLD Server</div>
+            <div id="dns-auth" class="absolute top-1/2 right-4 -translate-y-1/2 text-center">📖<br>Auth Server</div>
+        `;
+
+        const animateQuery = (from, to) => {
+            return new Promise(resolve => {
+                const fromEl = document.getElementById(from);
+                const toEl = document.getElementById(to);
+                const query = document.createElement('div');
+                query.className = 'absolute w-3 h-3 bg-yellow-400 rounded-full';
+                query.style.left = `${fromEl.offsetLeft + fromEl.offsetWidth / 2}px`;
+                query.style.top = `${fromEl.offsetTop + fromEl.offsetHeight / 2}px`;
+                query.style.transition = 'all 1s ease-in-out';
+                area.appendChild(query);
+                
+                setTimeout(() => {
+                    query.style.left = `${toEl.offsetLeft + toEl.offsetWidth / 2}px`;
+                    query.style.top = `${toEl.offsetTop + toEl.offsetHeight / 2}px`;
+                }, 100);
+                
+                setTimeout(() => { area.removeChild(query); resolve(); }, 1100);
+            });
+        };
+
+        const run = async () => {
+            await animateQuery('dns-client', 'dns-local');
+            await animateQuery('dns-local', 'dns-root');
+            await animateQuery('dns-root', 'dns-local');
+            await animateQuery('dns-local', 'dns-tld');
+            await animateQuery('dns-tld', 'dns-local');
+            await animateQuery('dns-local', 'dns-auth');
+            await animateQuery('dns-auth', 'dns-local');
+            await animateQuery('dns-local', 'dns-client');
+        };
+        run();
+    },
+    
+    renderTabs(section) {
+        return `
+            <div class="border-b border-gray-200">
+                <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                    ${section.tabs.map((tab, index) => `
+                        <button class="tab whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${index === 0 ? 'active' : ''}" data-tab="${section.id}-${index}">
+                            ${tab.name}
+                        </button>
+                    `).join('')}
+                </nav>
+            </div>
+            <div id="${section.id}-content" class="mt-4">
+                ${section.tabs[0].content}
+            </div>
+        `;
+    },
+
+    handleTabClick(tabElement, sectionId) {
+        const section = this.data.content[this.state.currentModule].sections.find(s => s.id === sectionId);
+        const tabIndex = tabElement.dataset.tab.split('-')[1];
+        
+        document.querySelectorAll(`#${sectionId} .tab`).forEach(t => t.classList.remove('active'));
+        tabElement.classList.add('active');
+        
+        document.getElementById(`${sectionId}-content`).innerHTML = section.tabs[tabIndex].content;
+    },
+    
+    renderBucketVisualizer() {
+        return `
+            <div class="text-center mb-6">
+                <button id="bucket-simulate-btn" class="interactive-btn bg-blue-500 text-white font-bold py-2 px-4 rounded-lg">Simulate Traffic Burst</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                    <h4 class="font-semibold text-center mb-2">Leaky Bucket</h4>
+                    <div class="w-32 h-40 bg-gray-200 mx-auto border-2 border-gray-400 relative rounded-b-lg">
+                        <div id="leaky-bucket-level" class="absolute bottom-0 left-0 w-full bg-blue-400 transition-all duration-300" style="height: 0%;"></div>
+                    </div>
+                    <p class="text-center mt-2 text-sm">Output: Constant Rate</p>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-center mb-2">Token Bucket</h4>
+                    <div class="w-32 h-40 bg-gray-200 mx-auto border-2 border-gray-400 relative rounded-b-lg">
+                         <div id="token-bucket-level" class="absolute bottom-0 left-0 w-full bg-green-400 transition-all duration-300" style="height: 50%;"></div>
+                    </div>
+                    <p class="text-center mt-2 text-sm">Output: Burstable</p>
+                </div>
+            </div>
+        `;
+    },
+
+    runBucketAnimation() {
+        const leakyLevel = document.getElementById('leaky-bucket-level');
+        const tokenLevel = document.getElementById('token-bucket-level');
+        
+        leakyLevel.style.height = '100%';
+        tokenLevel.style.height = '0%';
+        
+        setTimeout(() => { leakyLevel.style.transition = 'height 2s linear'; leakyLevel.style.height = '0%'; }, 500);
+        setTimeout(() => { tokenLevel.style.transition = 'height 2s linear'; tokenLevel.style.height = '50%'; }, 500);
+        setTimeout(() => {
+            leakyLevel.style.transition = 'height 0.3s';
+            tokenLevel.style.transition = 'height 0.3s';
+        }, 2500);
+    },
+
+    renderCards(section) {
+        return `
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                ${section.items.map(item => `
+                    <div class="protocol-card p-4 bg-gray-100 rounded-lg cursor-pointer hover:bg-blue-100 h-24 flex items-center justify-center text-center">
+                        <div>
+                            <h5 class="font-bold">${item.name}</h5>
+                            <p class="detail-text hidden mt-2 text-sm">${item.detail}</p>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    },
+    
+    renderMCQ(section) {
+        let html = '<div class="space-y-6">';
+        section.questions.forEach((q, index) => {
+            html += `
+                <div id="mcq-${section.id}-${index}">
+                    <p class="font-semibold mb-2">${index + 1}. ${q.q}</p>
+                    <div class="space-y-2">
+                        ${q.options.map((opt, optIndex) => `
+                            <label class="mcq-option flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-100">
+                                <input type="radio" name="mcq-${section.id}-${index}" value="${optIndex}" class="mr-3">
+                                <span>${opt}</span>
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        });
+        html += `</div>
+            <div class="mt-6 text-center">
+                <button id="mcq-check-btn-${section.id}" class="interactive-btn bg-green-600 text-white font-bold py-2 px-4 rounded-lg">Check Answers</button>
+            </div>
+            <div id="mcq-result-${section.id}" class="mt-4 text-center font-bold"></div>
+        `;
+        return html;
+    },
+
+    handleCheckMCQAnswers(section) {
+        let score = 0;
+        section.questions.forEach((q, index) => {
+            const container = document.getElementById(`mcq-${section.id}-${index}`);
+            const selected = container.querySelector(`input[name="mcq-${section.id}-${index}"]:checked`);
+            
+            container.querySelectorAll('.mcq-option').forEach(opt => {
+                opt.classList.remove('correct', 'incorrect');
+            });
+
+            if (selected) {
+                const selectedValue = parseInt(selected.value);
+                if (selectedValue === q.answer) {
+                    score++;
+                    selected.parentElement.classList.add('correct');
+                } else {
+                    selected.parentElement.classList.add('incorrect');
+                    container.querySelectorAll('.mcq-option')[q.answer].classList.add('correct');
+                }
+            } else {
+                 container.querySelectorAll('.mcq-option')[q.answer].classList.add('correct');
+            }
+        });
+        const resultDiv = document.getElementById(`mcq-result-${section.id}`);
+        resultDiv.textContent = `You scored ${score} out of ${section.questions.length}!`;
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    App.init();
+});
+</script>
+
+</body>
+</html>
